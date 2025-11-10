@@ -1,0 +1,4 @@
+project_id = "izadopusbgjbzmlznqkx"
+
+[functions.vibe-matcher]
+verify_jwt = false
