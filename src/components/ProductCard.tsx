@@ -1,5 +1,12 @@
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Heart } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 import type { Product } from "@/data/products";
 
 interface ProductCardProps {
@@ -8,10 +15,93 @@ interface ProductCardProps {
 }
 
 export const ProductCard = ({ product, rank }: ProductCardProps) => {
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkFavorite = async () => {
+      if (!user) {
+        setIsFavorite(false);
+        return;
+      }
+
+      const { data } = await supabase
+        .from("favorites")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("product_id", product.id)
+        .single();
+
+      setIsFavorite(!!data);
+    };
+
+    checkFavorite();
+  }, [user, product.id]);
+
+  const toggleFavorite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!user) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to save favorites",
+      });
+      navigate("/auth");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      if (isFavorite) {
+        const { error } = await supabase
+          .from("favorites")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("product_id", product.id);
+
+        if (error) throw error;
+
+        setIsFavorite(false);
+        toast({
+          title: "Removed from favorites",
+          description: "Product removed from your favorites",
+        });
+      } else {
+        const { error } = await supabase
+          .from("favorites")
+          .insert({
+            user_id: user.id,
+            product_id: product.id,
+          });
+
+        if (error) throw error;
+
+        setIsFavorite(true);
+        toast({
+          title: "Added to favorites",
+          description: "Product saved to your favorites",
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update favorites",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Card className="overflow-hidden hover:shadow-hover transition-all duration-300 animate-fade-in bg-gradient-card">
       <CardHeader className="p-0">
-        <div className="aspect-square bg-muted relative overflow-hidden">
+        <div className="aspect-square bg-muted relative overflow-hidden group">
           <img 
             src={product.imageUrl} 
             alt={product.name}
@@ -22,6 +112,19 @@ export const ProductCard = ({ product, rank }: ProductCardProps) => {
               #{rank}
             </div>
           )}
+          <Button
+            variant="secondary"
+            size="icon"
+            className="absolute top-4 left-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+            onClick={toggleFavorite}
+            disabled={isLoading}
+          >
+            <Heart
+              className={`h-5 w-5 transition-colors ${
+                isFavorite ? "fill-accent text-accent" : ""
+              }`}
+            />
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="p-6">

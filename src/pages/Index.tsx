@@ -2,9 +2,11 @@ import { useState } from "react";
 import { SearchInput } from "@/components/SearchInput";
 import { ProductCard } from "@/components/ProductCard";
 import { MetricsCard } from "@/components/MetricsCard";
+import { UserMenu } from "@/components/UserMenu";
 import { products } from "@/data/products";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Sparkles, Info } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -19,6 +21,7 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<MatchResult | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -32,6 +35,17 @@ const Index = () => {
       if (error) throw error;
 
       setResults(data);
+      
+      // Save search to history if user is logged in
+      if (user && data.matches.length > 0) {
+        await supabase.from("search_history").insert({
+          user_id: user.id,
+          query,
+          results_count: data.matches.length,
+          top_match_score: data.matches[0]?.similarity,
+        });
+      }
+
       toast({
         title: "Match found!",
         description: `Found ${data.matches.length} matching products`,
@@ -56,21 +70,26 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
       <div className="bg-gradient-hero text-primary-foreground py-20 px-4">
-        <div className="max-w-6xl mx-auto text-center space-y-6 animate-fade-in">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Sparkles className="h-10 w-10" />
-            <h1 className="text-5xl font-bold">Vibe Matcher</h1>
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-end mb-6">
+            <UserMenu />
           </div>
-          <p className="text-xl opacity-90 max-w-2xl mx-auto">
-            AI-powered fashion recommendations using semantic embeddings and cosine similarity
-          </p>
-          <div className="mt-8">
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              onSearch={handleSearch}
-              loading={loading}
-            />
+          <div className="text-center space-y-6 animate-fade-in">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <Sparkles className="h-10 w-10" />
+              <h1 className="text-5xl font-bold">Vibe Matcher</h1>
+            </div>
+            <p className="text-xl opacity-90 max-w-2xl mx-auto">
+              AI-powered fashion recommendations using semantic embeddings and cosine similarity
+            </p>
+            <div className="mt-8">
+              <SearchInput
+                value={query}
+                onChange={setQuery}
+                onSearch={handleSearch}
+                loading={loading}
+              />
+            </div>
           </div>
         </div>
       </div>
